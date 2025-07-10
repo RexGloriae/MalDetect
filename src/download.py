@@ -86,12 +86,13 @@ class MalwareBazaar:
         try:
             with zipfile.ZipFile(zip_path) as z:
                 for sample in z.namelist():
-                    if sample in self.manifest:
+                    hash_only = os.path.splitext(sample)[0]
+                    if hash_only in self.manifest:
                         logging.info(f"Skipping known sample: {sample}...")
                         continue
                     print(f"Extracting {sample}...")
                     z.extract(sample, path=OUTPUT, pwd=b'infected')
-                    self.manifest.add(sample)
+                    self.manifest.add(hash_only)
         except zipfile.BadZipFile as e:
             logging.error(f"{e}...")
         except RuntimeError as e:
