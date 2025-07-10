@@ -8,12 +8,10 @@ __pycache__/
 
 # Distribution / packaging
 .Python
-src/manifest
 build/
 develop-eggs/
 dist/
 downloads/
-assets/
 eggs/
 .eggs/
 lib/
@@ -207,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Assets
+zip_manifest
+manifest
+assets/
