@@ -210,3 +210,4 @@ __marimo__/
 manifest
 src/secret/
 logs/
+malware.db
