@@ -1,125 +1,70 @@
-from bs4 import BeautifulSoup
 import requests
 import os
-import zipfile
 from log import *
+from secret.key import MALSHARE_API
 
-MALBAZAAR = 'https://datalake.abuse.ch/malware-bazaar/hourly/'
-OUTPUT = 'assets/'
+MALBAZAAR = 'https://bazaar.abuse.ch/export/txt/sha256/recent/'
+MALSHARE = f'https://malshare.com/api.php?api_key={MALSHARE_API}&action=getlist'
 MANIFEST = 'manifest'
-ZIP_MANIFEST = 'zip_manifest'
 
-class MalwareBazaar:
-    def __init__(self):
-        os.makedirs(OUTPUT, exist_ok=True)
-        self.manifest = self.load_manifest()
-        self.zip_manifest = self.load_zip_manifest()
-
-    def scrape(self):
-        logging.info("Scraping Malware Bazaar...")
-        response = requests.get(MALBAZAAR)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        zip_links = []
-        for link in soup.find_all('a'):
-            href = link.get('href')
-            if href and href.endswith('.zip'):
-                logging.info(f"Found archive: {href}")
-                zip_links.append(MALBAZAAR + href)
-        return zip_links
-
-    
-    def load_manifest(self):
-        logging.info("Loading manifest...")
-        entries = set()
+def load_manifest():
+        manifest = []
         if os.path.exists(MANIFEST):
             with open(MANIFEST, 'r') as f:
                 for line in f:
-                    entries.add(line.strip())
-        return entries
+                    manifest.append(line.strip())
+        return manifest
 
-    def load_zip_manifest(self):
-        logging.info("Loading ZIP manifest...")
-        entries = set()
-        if os.path.exists(ZIP_MANIFEST):
-            with open(ZIP_MANIFEST, 'r') as f:
-                for line in f:
-                    entries.add(line.strip())
-        return entries
+def resolve_hashes(hashes):
+    logging.info("Loading manifest...")
+    manifest = load_manifest()
+    new = 0
+    for hash in hashes:
+        if hash not in manifest:
+            logging.info(f"Adding to manifest a new hash: {hash}...")
+            new = new + 1
+            with open(MANIFEST, 'a') as f:
+                f.write(hash + '\n')
+        else:
+            logging.info(f"Skipping known hash: {hash}...")
+    return new
 
-    def save_manifest(self):
-        logging.info("Saving manifest...")
-        with open(MANIFEST, 'w') as f:
-            for line in sorted(self.manifest):
-                f.write(line + '\n')
+class MalwareBazaar:
+    def __init__(self):
+        self.response = requests.get(MALBAZAAR)
+        self.response.raise_for_status()
+
+    def get_hashes(self):
+        lines = self.response.text.splitlines()
+        hashes = [line.strip() for line in lines if line and not line.startswith("#")]
+        return hashes
     
-    def save_zip_manifest(self):
-        logging.info("Saving ZIP manifest...")
-        with open(ZIP_MANIFEST, 'w') as f:
-            for line in sorted(self.zip_manifest):
-                f.write(line + '\n')
+    def scrape(self):
+        logging.info(f"Getting malware hashes from {MALBAZAAR}...")
+        hashes = self.get_hashes()
+        logging.info(f"Fetched {len(hashes)} hashes...")
+        new = resolve_hashes(hashes)
+        logging.info(f"A total of {new} new hashes has been added from Malware Bazaar...")
+
+class MalShare:
+    def __init__(self):
+        self.response = requests.get(MALSHARE)
+        self.response.raise_for_status()
     
-    def download_zip(self, url, dest):
-        logging.info(f"Downloading ZIP archive: {url}...")
-        with requests.get(url, stream=True) as r:
-            r.raise_for_status()
-            total_len = int(r.headers.get('content-length', 0))
-            downloaded = 0
-            chunk_size = 8192
-            bar_len = 40
+    def get_hashes(self):
+        data = self.response.json()
+        hashes = [entry['sha256'] for entry in data]
+        return hashes
 
-            with open(dest, 'wb') as f:
-                for chunk in r.iter_content(chunk_size):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded+=len(chunk)
-
-                        if total_len:
-                            done = int(bar_len * downloaded / total_len)
-                            progress_bar = '#' * done + '-' * (bar_len - done)
-                            percent = (downloaded / total_len) * 100
-                            print(f"\r[{progress_bar}] {percent:.1f}%", end='', flush=True)
-            print()
-            logging.info(f"Saved ZIP to {dest}...")
-    
-    def proccess_zip(self, zip_path):
-        logging.info(f"Proccessing {zip_path}...")
-        try:
-            with zipfile.ZipFile(zip_path) as z:
-                for sample in z.namelist():
-                    hash_only = os.path.splitext(sample)[0]
-                    if hash_only in self.manifest:
-                        logging.info(f"Skipping known sample: {sample}...")
-                        continue
-                    print(f"Extracting {sample}...")
-                    z.extract(sample, path=OUTPUT, pwd=b'infected')
-                    self.manifest.add(hash_only)
-        except zipfile.BadZipFile as e:
-            logging.error(f"{e}...")
-        except RuntimeError as e:
-            logging.error(f"{e}...")
-
-        os.remove(zip_path)
-
-    def run(self):
-        links = self.scrape()
-        for url in links:
-            zip_name = url.split('/')[-1]
-            zip_path = os.path.join(OUTPUT, zip_name)
-
-            if zip_name in self.zip_manifest:
-                logging.info(f"Skipping already proccessed ZIP: {zip_name}...")
-                continue
-
-            if not os.path.exists(zip_path):
-                self.download_zip(url, zip_path)
-            else:
-                logging.info(f"Skipping already downloaded ZIP: {zip_name}...")
-
-            self.proccess_zip(zip_path)
-        
-        self.save_manifest()
-
+    def scrape(self):
+        logging.info(f"Getting malware hashes from {MALSHARE}...")
+        hashes = self.get_hashes()
+        logging.info(f"Fetched {len(hashes)} hasshes...")
+        new = resolve_hashes(hashes)
+        logging.info(f"A total of {new} new hashes has been added from MalShare...")
     
 if __name__ == "__main__":
     scraper = MalwareBazaar()
-    scraper.run()
+    scraper.scrape()
+    scraper = MalShare()
+    scraper.scrape()
