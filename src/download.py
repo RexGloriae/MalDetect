@@ -66,8 +66,11 @@ class MalShare:
     
 if __name__ == "__main__":
     while True:
-        scraper = MalwareBazaar()
-        scraper.scrape()
-        scraper = MalShare()
-        scraper.scrape()
-        time.sleep(3600)
+        for remaining in range(60, 0, -1):
+            scraper = MalwareBazaar()
+            scraper.scrape()
+            scraper = MalShare()
+            scraper.scrape()
+            print(f"\r[ETA] Time until next download: {remaining} minutes...", end='', flush=True)
+            time.sleep(60)
+        
