@@ -2,6 +2,7 @@ import requests
 import os
 from log import *
 from secret.key import MALSHARE_API
+import time
 
 MALBAZAAR = 'https://bazaar.abuse.ch/export/txt/sha256/recent/'
 MALSHARE = f'https://malshare.com/api.php?api_key={MALSHARE_API}&action=getlist'
@@ -64,7 +65,9 @@ class MalShare:
         logging.info(f"A total of {new} new hashes has been added from MalShare...")
     
 if __name__ == "__main__":
-    scraper = MalwareBazaar()
-    scraper.scrape()
-    scraper = MalShare()
-    scraper.scrape()
+    while True:
+        scraper = MalwareBazaar()
+        scraper.scrape()
+        scraper = MalShare()
+        scraper.scrape()
+        time.sleep(3600)
