@@ -15,6 +15,15 @@ class Database:
         conn.commit()
         conn.close()
 
+    def exists(self, hash):
+        conn = sqlite3.connect(self.db_name)
+        c = conn.cursor()
+        c.execute("SELECT 1 FROM malware WHERE file_hash = ?", (hash,))
+        exists = c.fetchone() is not None
+        conn.commit()
+        conn.close()
+        return exists
+
     def save(self, hash):
         conn = sqlite3.connect(self.db_name)
         c = conn.cursor()
@@ -27,7 +36,7 @@ class Database:
             ))
             conn.commit()
         except sqlite3.IntegrityError:
-            # hash already exists
+            logging.warning(f'A try to insert an existing hash has failed...')
             return
         finally:
             conn.close()
