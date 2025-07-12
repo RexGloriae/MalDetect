@@ -1,5 +1,4 @@
 import requests
-import os
 from log import *
 from secret.key import MALSHARE_API
 import time
