@@ -3,29 +3,18 @@ import os
 from log import *
 from secret.key import MALSHARE_API
 import time
+from database import *
 
 MALBAZAAR = 'https://bazaar.abuse.ch/export/txt/sha256/recent/'
 MALSHARE = f'https://malshare.com/api.php?api_key={MALSHARE_API}&action=getlist'
-MANIFEST = 'manifest'
-
-def load_manifest():
-        manifest = []
-        if os.path.exists(MANIFEST):
-            with open(MANIFEST, 'r') as f:
-                for line in f:
-                    manifest.append(line.strip())
-        return manifest
 
 def resolve_hashes(hashes):
-    logging.info("Loading manifest...")
-    manifest = load_manifest()
     new = 0
     for hash in hashes:
-        if hash not in manifest:
-            logging.info(f"Adding to manifest a new hash: {hash}...")
+        if Database().exists(hash) is False:
+            logging.info(f"Adding to database a new hash: {hash}...")
             new = new + 1
-            with open(MANIFEST, 'a') as f:
-                f.write(hash + '\n')
+            Database().save(hash)
         else:
             logging.info(f"Skipping known hash: {hash}...")
     return new
